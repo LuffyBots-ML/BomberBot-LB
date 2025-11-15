@@ -76,7 +76,8 @@ def init_db():
             is_premium INTEGER DEFAULT 0,
             is_admin INTEGER DEFAULT 0,
             join_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-            is_verified INTEGER DEFAULT 0
+            is_verified INTEGER DEFAULT 0,
+            is_banned INTEGER DEFAULT 0
         )
     ''')
     
@@ -112,14 +113,15 @@ def update_user(user_id, username, first_name):
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT OR REPLACE INTO users (user_id, username, first_name, credits, referrals, referred_by, is_premium, is_admin, is_verified)
+        INSERT OR REPLACE INTO users (user_id, username, first_name, credits, referrals, referred_by, is_premium, is_admin, is_verified, is_banned)
         VALUES (?, ?, ?, COALESCE((SELECT credits FROM users WHERE user_id = ?), 30), 
                 COALESCE((SELECT referrals FROM users WHERE user_id = ?), 0),
                 COALESCE((SELECT referred_by FROM users WHERE user_id = ?), NULL),
                 COALESCE((SELECT is_premium FROM users WHERE user_id = ?), 0),
                 COALESCE((SELECT is_admin FROM users WHERE user_id = ?), 0),
-                COALESCE((SELECT is_verified FROM users WHERE user_id = ?), 0))
-    ''', (user_id, username, first_name, user_id, user_id, user_id, user_id, user_id, user_id))
+                COALESCE((SELECT is_verified FROM users WHERE user_id = ?), 0),
+                COALESCE((SELECT is_banned FROM users WHERE user_id = ?), 0))
+    ''', (user_id, username, first_name, user_id, user_id, user_id, user_id, user_id, user_id, user_id))
     conn.commit()
     conn.close()
 
@@ -191,6 +193,61 @@ def is_admin(user_id):
 def is_verified(user_id):
     user = get_user(user_id)
     return user and user[9] == 1
+
+def is_banned(user_id):
+    user = get_user(user_id)
+    return user and user[10] == 1
+
+def add_admin(user_id):
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET is_admin = 1 WHERE user_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+def remove_admin(user_id):
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET is_admin = 0 WHERE user_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+def ban_user(user_id):
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET is_banned = 1 WHERE user_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+def unban_user(user_id):
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET is_banned = 0 WHERE user_id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_pending_payments():
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM payments WHERE status = "pending"')
+    payments = cursor.fetchall()
+    conn.close()
+    return payments
+
+def update_payment_status(payment_id, status):
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE payments SET status = ? WHERE id = ?', (status, payment_id))
+    conn.commit()
+    conn.close()
+
+def get_all_admins():
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT user_id, username, first_name FROM users WHERE is_admin = 1')
+    admins = cursor.fetchall()
+    conn.close()
+    return admins
 
 # Your SMS Bomber Class (Integrated)
 class UltimateSMSBomber:
@@ -437,6 +494,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.effective_user.username
     first_name = update.effective_user.first_name
     
+    # Check if user is banned
+    if is_banned(user_id):
+        await update.message.reply_text("❌ You are banned from using this bot.")
+        return
+    
     update_user(user_id, username, first_name)
     
     referred_by = None
@@ -528,6 +590,11 @@ Choose an option below:
          InlineKeyboardButton("🚀 Start Bombing", callback_data="bomb_menu")],
         [InlineKeyboardButton("📞 Contact Admin", url="https://t.me/HelpLuffyBot")]
     ]
+    
+    # Add admin panel button for admins
+    if is_admin(user_id):
+        keyboard.append([InlineKeyboardButton("👑 Admin Panel", callback_data="admin_panel")])
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
@@ -535,77 +602,6 @@ Choose an option below:
     else:
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-    
-    if not is_verified(user_id):
-        await start(update, context)
-        return
-    
-    if query.data == "account":
-        user = get_user(user_id)
-        if user:
-            premium_status = "🌟 Premium" if user[6] else "⚡ Regular"
-            account_text = f"""
-👤 **Account Information**
+# ==================== ADMIN COMMANDS ====================
 
-🆔 **User ID:** `{user[0]}`
-📛 **Name:** {user[2]}
-💳 **Credits:** {user[3]}
-👥 **Referrals:** {user[4]}
-🎯 **Status:** {premium_status}
-📅 **Member Since:** {user[8][:10]}
-"""
-            await query.edit_message_text(account_text, parse_mode='Markdown')
-    
-    elif query.data == "referral":
-        user = get_user(user_id)
-        bot_username = (await context.bot.get_me()).username
-        referral_link = f"https://t.me/{bot_username}?start={user_id}"
-        
-        referral_text = f"""
-👥 **Referral System**
-
-🔗 **Your Referral Link:**
-`{referral_link}`
-
-💰 **Referral Bonus:**
-• 25 credits per successful referral
-• Unlimited earning potential
-
-📊 **Your Stats:**
-• Total Referrals: {user[4]}
-• Earned Credits: {user[4] * 25}
-
-🎯 **How it works:**
-1. Share your referral link
-2. When someone joins using your link
-3. You get 25 credits instantly!
-"""
-        await query.edit_message_text(referral_text, parse_mode='Markdown')
-    
-    elif query.data == "buy_credit":
-        keyboard = []
-        for package, details in CREDIT_PACKAGES.items():
-            button_text = f"💰 {details['credits']} Credits - ₹{details['price']}"
-            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"package_{package}")])
-        keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="main_menu")])
-        
-        credit_text = """
-💳 **Buy Credits**
-
-🎯 **Credit Packages:**
-• 1 Credit = 1 SMS
-• Instant delivery
-• 24/7 support
-
-📦 **Available Packages:"""
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(credit_text, reply_markup=reply_markup, parse_mode='Markdown')
-    
-    elif query.data == "bomb_menu":
-        user = get_user(user_id)
-        if user
+async def admin_panel(update: Update, context: ContextT
